@@ -22,11 +22,16 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
   throw new Error('PORT must be an integer between 1 and 65535.');
 }
 
-if (!mongoUri) {
-  throw new Error('MONGODB_URI is required. Add your MongoDB Atlas connection string to .env.');
+let mongoClient = null;
+if (mongoUri) {
+  try {
+    mongoClient = new MongoClient(mongoUri);
+  } catch (error) {
+    console.error('MONGODB_URI is invalid:', error);
+  }
+} else {
+  console.error('MONGODB_URI is not configured; contact submissions will be unavailable.');
 }
-
-const mongoClient = new MongoClient(mongoUri);
 const contactMessages = () => mongoClient.db(databaseName).collection('contactMessages');
 
 function sendJson(response, statusCode, data) {
@@ -121,6 +126,11 @@ const server = createServer(async (request, response) => {
         return;
       }
 
+      if (!mongoClient) {
+        sendJson(response, 503, { error: 'Contact service is temporarily unavailable.' });
+        return;
+      }
+
       await contactMessages().insertOne({
         name: body.name.trim(),
         email: body.email.trim(),
@@ -136,7 +146,7 @@ const server = createServer(async (request, response) => {
       }
 
       console.error('Failed to save contact message:', error);
-      sendJson(response, 500, { error: 'Unable to send your message right now. Please try again later.' });
+      sendJson(response, 503, { error: 'Contact service is temporarily unavailable. Please try again later.' });
     }
     return;
   }
@@ -172,22 +182,16 @@ const server = createServer(async (request, response) => {
   }
 });
 
-async function startServer() {
-  await mongoClient.connect();
-  server.listen(port, 'localhost', () => {
-    console.log(`Portfolio server running at http://localhost:${port}`);
-  });
-}
-
-startServer().catch(error => {
-  console.error('Failed to connect to MongoDB Atlas:', error);
-  process.exitCode = 1;
+server.listen(port, '0.0.0.0', () => {
+  console.log(`Portfolio server listening on port ${port}`);
 });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
     server.close(async () => {
-      await mongoClient.close();
+      if (mongoClient) {
+        await mongoClient.close();
+      }
       process.exitCode = 0;
     });
   });
