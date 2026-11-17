@@ -1,0 +1,15 @@
+{
+  "name": "suthan-portfolio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Suthan's portfolio website",
+  "scripts": {
+    "start": "node --env-file=.env server.js"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "dependencies": {
+    "mongodb": "^7.9.0"
+  }
+}
